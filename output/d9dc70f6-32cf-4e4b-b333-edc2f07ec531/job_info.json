@@ -1,0 +1,14 @@
+{
+  "job_id": "d9dc70f6-32cf-4e4b-b333-edc2f07ec531",
+  "created_at": "2026-03-09T22:24:54.043307",
+  "source": "test_spec.json",
+  "spec_file": "input_spec.json",
+  "base_url": "",
+  "endpoints": 1,
+  "auth_type": "none",
+  "output_files": [
+    "client_stubs.py",
+    "usage_examples.py",
+    "contract_tests.py"
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "job_id": "7aa9fed4-848e-4591-9cd8-1be95f81d9c2",
+  "created_at": "2026-03-09T22:26:15.385028",
+  "source": "https://petstore3.swagger.io/api/v3/openapi.json",
+  "spec_file": "input_spec.json",
+  "base_url": "/api/v3",
+  "endpoints": 19,
+  "auth_type": "oauth2",
+  "output_files": [
+    "client_stubs.py",
+    "usage_examples.py",
+    "contract_tests.py"
+  ]
+}
