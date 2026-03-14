@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { useRouter } from "next/navigation"
 import { getDownloadUrl } from "@/lib/api"
 import EndpointMap from "./EndpointMap"
 import DebugChat from "./DebugChat"
@@ -116,6 +117,7 @@ function InfoRow({ label, value, mono }: { label: string; value: string; mono?: 
 }
 
 export default function ResultsPanel({ jobId, jobState }: Props) {
+  const router = useRouter()
   const [chatOpen, setChatOpen]           = useState(false)
   const [prefilledMessage, setPrefilledMessage] = useState("")
   const [previewFile, setPreviewFile]     = useState<string | null>(null)
@@ -156,13 +158,37 @@ export default function ResultsPanel({ jobId, jobState }: Props) {
             style={{ borderColor: "var(--border)", backgroundColor: "var(--bg-surface)" }}
           >
             <div className="flex items-center justify-between">
-              <div>
-                <h1 className="font-mono font-semibold" style={{ color: "var(--text-primary)" }}>
-                  Results
-                </h1>
-                <p className="text-xs font-mono mt-0.5" style={{ color: "var(--text-muted)" }}>
-                  session: {jobId.slice(0, 8)}
-                </p>
+              <div className="flex items-center gap-3">
+                {/* Home button */}
+                <button
+                  onClick={() => router.push("/")}
+                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg font-mono text-xs transition-all"
+                  style={{
+                    backgroundColor: "var(--bg-elevated)",
+                    border: "1px solid var(--border)",
+                    color: "var(--text-muted)",
+                  }}
+                  onMouseEnter={(e) => {
+                    const b = e.currentTarget as HTMLButtonElement
+                    b.style.borderColor = "var(--accent-blue)"
+                    b.style.color = "var(--accent-blue)"
+                  }}
+                  onMouseLeave={(e) => {
+                    const b = e.currentTarget as HTMLButtonElement
+                    b.style.borderColor = "var(--border)"
+                    b.style.color = "var(--text-muted)"
+                  }}
+                >
+                  ← Home
+                </button>
+                <div>
+                  <h1 className="font-mono font-semibold" style={{ color: "var(--text-primary)" }}>
+                    Results
+                  </h1>
+                  <p className="text-xs font-mono mt-0.5" style={{ color: "var(--text-muted)" }}>
+                    session: {jobId.slice(0, 8)}
+                  </p>
+                </div>
               </div>
               <span
                 className="text-xs font-mono px-2.5 py-1 rounded-lg"
@@ -178,6 +204,84 @@ export default function ResultsPanel({ jobId, jobState }: Props) {
           </div>
 
           <div className="px-6 py-5 flex flex-col gap-6">
+            {/* AI Debug Assistant banner */}
+            {!chatOpen ? (
+              <div
+                className="flex items-center justify-between rounded-xl px-4 py-3"
+                style={{
+                  background: "linear-gradient(135deg, rgba(124,58,237,0.12), rgba(147,51,234,0.08))",
+                  border: "1px solid rgba(124,58,237,0.3)",
+                }}
+              >
+                <div className="flex flex-col gap-0.5">
+                  <span
+                    className="font-mono font-semibold text-sm"
+                    style={{ color: "var(--accent-blue)" }}
+                  >
+                    ✨ AI Debug Assistant
+                  </span>
+                  <span className="text-xs" style={{ color: "var(--text-muted)" }}>
+                    Diagnose errors using your spec &amp; generated code
+                  </span>
+                </div>
+                <button
+                  onClick={() => setChatOpen(true)}
+                  className="px-3 py-1.5 rounded-lg font-mono text-xs font-semibold transition-all shrink-0 ml-4"
+                  style={{
+                    backgroundColor: "var(--accent-blue)",
+                    color: "#ffffff",
+                    border: "1px solid var(--accent-blue)",
+                  }}
+                  onMouseEnter={(e) => {
+                    (e.currentTarget as HTMLButtonElement).style.backgroundColor = "var(--accent-purple)"
+                    ;(e.currentTarget as HTMLButtonElement).style.borderColor = "var(--accent-purple)"
+                  }}
+                  onMouseLeave={(e) => {
+                    (e.currentTarget as HTMLButtonElement).style.backgroundColor = "var(--accent-blue)"
+                    ;(e.currentTarget as HTMLButtonElement).style.borderColor = "var(--accent-blue)"
+                  }}
+                >
+                  Open →
+                </button>
+              </div>
+            ) : (
+              <div
+                className="flex items-center justify-between rounded-xl px-4 py-2"
+                style={{
+                  background: "linear-gradient(135deg, rgba(124,58,237,0.12), rgba(147,51,234,0.08))",
+                  border: "1px solid rgba(124,58,237,0.3)",
+                }}
+              >
+                <span
+                  className="font-mono font-semibold text-sm"
+                  style={{ color: "var(--accent-blue)" }}
+                >
+                  ✨ AI Debug Assistant · <span style={{ color: "var(--accent-green)" }}>live</span>
+                </span>
+                <button
+                  onClick={() => { setChatOpen(false); setPrefilledMessage("") }}
+                  className="px-3 py-1 rounded-lg font-mono text-xs transition-all"
+                  style={{
+                    backgroundColor: "transparent",
+                    border: "1px solid rgba(124,58,237,0.3)",
+                    color: "var(--text-muted)",
+                  }}
+                  onMouseEnter={(e) => {
+                    const b = e.currentTarget as HTMLButtonElement
+                    b.style.borderColor = "var(--accent-blue)"
+                    b.style.color = "var(--accent-blue)"
+                  }}
+                  onMouseLeave={(e) => {
+                    const b = e.currentTarget as HTMLButtonElement
+                    b.style.borderColor = "rgba(124,58,237,0.3)"
+                    b.style.color = "var(--text-muted)"
+                  }}
+                >
+                  ✕ Close
+                </button>
+              </div>
+            )}
+
             {/* Generated files */}
             <section>
               <h2
@@ -251,36 +355,6 @@ export default function ResultsPanel({ jobId, jobState }: Props) {
               </section>
             )}
           </div>
-
-          {/* Debug chat trigger */}
-          {!chatOpen && (
-            <div className="mt-auto px-6 py-4 border-t shrink-0" style={{ borderColor: "var(--border)" }}>
-              <button
-                onClick={() => setChatOpen(true)}
-                className="w-full flex items-center justify-between rounded-xl px-4 py-2.5 font-mono text-sm transition-all"
-                style={{
-                  backgroundColor: "rgba(124,106,247,0.08)",
-                  border: "1px solid var(--border)",
-                  color: "var(--text-muted)",
-                }}
-                onMouseEnter={(e) => {
-                  const b = e.currentTarget as HTMLButtonElement
-                  b.style.borderColor = "var(--accent-blue)"
-                  b.style.color = "var(--accent-blue)"
-                  b.style.backgroundColor = "rgba(124,106,247,0.14)"
-                }}
-                onMouseLeave={(e) => {
-                  const b = e.currentTarget as HTMLButtonElement
-                  b.style.borderColor = "var(--border)"
-                  b.style.color = "var(--text-muted)"
-                  b.style.backgroundColor = "rgba(124,106,247,0.08)"
-                }}
-              >
-                <span>Still stuck? Debug with AI</span>
-                <span>→</span>
-              </button>
-            </div>
-          )}
         </div>
 
         {/* ── Right panel — debug chat ───────────────────────── */}

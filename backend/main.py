@@ -272,28 +272,65 @@ async def execute_pipeline(
 
 # ── Phase 2: Debug Chat ───────────────────────────────────────
 
-CHAT_SYSTEM_PROMPT = """You are an API integration debugger. The user ran a pipeline that generated \
-a Python httpx client (client_stubs.py), usage examples (usage_examples.py), and contract tests \
-(contract_tests.py) for a 3rd-party API. They are now hitting integration errors.
+def _build_system_prompt(spec_summary: dict, stubs: str, examples: str, tests: str) -> str:
+    """Build a system prompt that embeds the full API context in memory:
+    - spec summary (base URL, auth, all endpoints)
+    - all 3 generated files (complete content)
+    - conversation history is appended by the caller
+    The LLM has everything it needs without calling any tools.
+    Tools are kept for structured lookups (exact schema, fuzzy endpoint search).
+    """
+    endpoints = spec_summary.get("endpoints", [])
+    ep_lines = "\n".join(
+        f"  {ep.get('method','?').upper():6} {ep.get('path','')}  — {ep.get('summary','')}"
+        for ep in endpoints
+    )
+    common_errors = ", ".join(str(e) for e in spec_summary.get("common_error_codes", [])) or "none documented"
 
-Available tools:
-- get_endpoint_info(method, path)            — spec details for that endpoint
-- get_auth_config()                          — auth type and location
-- get_code_snippet(method, path, file_type)  — stub / example / test code ('stub'|'example'|'test')
-- get_common_errors()                        — documented HTTP error codes from the spec
-- list_endpoints()                           — all endpoints with methods and summaries
+    # Truncate each file to fit — keep as much as possible within reason
+    def _trim(code: str, max_chars: int = 8000) -> str:
+        if len(code) <= max_chars:
+            return code
+        return code[:max_chars] + f"\n... [truncated — {len(code) - max_chars} chars omitted]"
+
+    return f"""\
+You are an API integration debugger. The user processed an OpenAPI spec through a 4-chain pipeline \
+that generated three Python files. You have the FULL content of all three files below — no need to \
+call tools to look up generated code. Use the code directly to diagnose and fix errors.
+
+== API SPEC SUMMARY ==
+Base URL:    {spec_summary.get("base_url", "unknown")}
+Auth type:   {spec_summary.get("auth_type", "none")}
+Auth location: {spec_summary.get("auth_location", "none")}
+Pagination:  {spec_summary.get("pagination_style", "none")}
+Endpoints ({len(endpoints)} total):
+{ep_lines or "  (none)"}
+Common error codes: {common_errors}
+== END SPEC SUMMARY ==
+
+== client_stubs.py (generated httpx client) ==
+{_trim(stubs) if stubs else "(file not available)"}
+== END client_stubs.py ==
+
+== usage_examples.py (generated usage examples) ==
+{_trim(examples) if examples else "(file not available)"}
+== END usage_examples.py ==
+
+== contract_tests.py (generated contract tests) ==
+{_trim(tests) if tests else "(file not available)"}
+== END contract_tests.py ==
 
 Rules:
-1. Call get_endpoint_info first when an endpoint is mentioned.
-2. For any 4xx error, call get_auth_config before diagnosing.
-3. Always include a corrected code snippet using a ```python code block.
-4. Name the exact line to change — not just the concept.
-5. Keep responses concise. One root cause. One fix.
-6. Never tell the user to re-upload files or re-run the pipeline.
+1. You have the full generated code above — reference exact line numbers and function names.
+2. When the user pastes an error, identify the exact function/line in the code above that caused it.
+3. Always show the corrected code in a ```python block with the specific fix.
+4. Keep responses concise: one root cause, one fix, exact line to change.
+5. Never tell the user to re-upload files or re-run the pipeline.
+6. Use get_endpoint_info tool only if you need the raw OpenAPI schema for a specific endpoint.
 
-End every response with exactly this line (replace with 2-3 relevant suggestions):
-SUGGESTIONS: "suggestion 1" | "suggestion 2" | "suggestion 3"
-Each suggestion must be a short follow-up question the user might ask (max 7 words each)."""
+End every response with exactly this line (2-3 short follow-up questions, max 7 words each):
+SUGGESTIONS: "suggestion 1" | "suggestion 2" | "suggestion 3"\
+"""
 
 
 class ChatHistoryItem(BaseModel):
@@ -332,48 +369,16 @@ def _run_chat(
             return json.dumps(fuzzy[0], indent=2)
         return f"Endpoint {method} {path} not found in spec."
 
-    @tool
-    def get_auth_config() -> str:
-        """Get authentication type (bearer/api_key/basic/none) and location for this API."""
-        return json.dumps({
-            "auth_type": spec_summary.get("auth_type", "none"),
-            "auth_location": spec_summary.get("auth_location", "none"),
-        })
-
-    @tool
-    def get_code_snippet(method: str, path: str, file_type: str) -> str:
-        """Get generated code for an endpoint. file_type: 'stub', 'example', or 'test'."""
-        file_map = {"stub": stubs, "example": examples, "test": tests}
-        code = file_map.get(file_type.lower(), "")
-        if not code:
-            return f"File '{file_type}' not available."
-        path_key = path.strip("/").replace("/", "_").replace("{", "").replace("}", "")
-        lines = code.split("\n")
-        for i, line in enumerate(lines):
-            if path_key.lower() in line.lower() or path.lstrip("/") in line:
-                return "\n".join(lines[max(0, i - 1):i + 20])
-        return code[:3000]  # fallback: first chunk
-
-    @tool
-    def get_common_errors() -> str:
-        """Get documented HTTP error codes from the API spec."""
-        return json.dumps(spec_summary.get("common_error_codes", []))
-
-    @tool
-    def list_endpoints() -> str:
-        """List all available API endpoints with HTTP method and summary."""
-        return json.dumps([
-            {"method": ep.get("method"), "path": ep.get("path"), "summary": ep.get("summary", "")}
-            for ep in spec_summary.get("endpoints", [])
-        ])
-
-    tools_list = [get_endpoint_info, get_auth_config, get_code_snippet, get_common_errors, list_endpoints]
+    # get_endpoint_info is the only tool needed — full file content is already in the system prompt.
+    # It's kept for fetching the raw OpenAPI schema (request body schema, response schema)
+    # which is too verbose to embed in the prompt for every endpoint.
+    tools_list = [get_endpoint_info]
 
     llm = get_llm()
     llm_with_tools = llm.bind_tools(tools_list)
 
-    # Build message history
-    msgs: list = [SystemMessage(content=CHAT_SYSTEM_PROMPT)]
+    # System prompt embeds: spec summary + all 3 generated files + conversation history
+    msgs: list = [SystemMessage(content=_build_system_prompt(spec_summary, stubs, examples, tests))]
     for h in history[-10:]:
         if h.role == "user":
             msgs.append(HumanMessage(content=h.content))

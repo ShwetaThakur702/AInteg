@@ -3,6 +3,7 @@
 import { useSearchParams, useRouter } from "next/navigation"
 import { useEffect, useState, Suspense } from "react"
 import { createStatusEventSource } from "@/lib/api"
+import { saveConversation } from "@/lib/conversations"
 import ResultsPanel from "@/components/ResultsPanel"
 import type { JobState } from "@/types/pipeline"
 
@@ -37,6 +38,20 @@ function ResultsContent() {
         if (data.status === "complete") {
           es.close()
           setResolved(true)
+          // Save to history (spec_summary available in data)
+          if (data.spec_summary) {
+            try {
+              const label = new URL(data.spec_summary.base_url).hostname
+              saveConversation({
+                jobId: jobId!,
+                label,
+                source: jobId!.slice(0, 8),
+                timestamp: Date.now(),
+                endpointCount: data.spec_summary.endpoints.length,
+                authType: data.spec_summary.auth_type,
+              })
+            } catch { /* ignore */ }
+          }
         } else if (data.status === "error") {
           es.close()
           setResolved(true)

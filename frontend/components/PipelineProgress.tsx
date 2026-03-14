@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { createStatusEventSource } from "@/lib/api"
+import { saveConversation } from "@/lib/conversations"
 import type { JobState, ChainStage } from "@/types/pipeline"
 
 interface Props {
@@ -19,6 +20,15 @@ const STAGES: { key: ChainStage | "complete"; label: string; progress: number }[
 ]
 
 type StageState = "pending" | "running" | "done" | "error"
+
+function extractLabel(url?: string | null): string {
+  if (!url) return "Unknown API"
+  try {
+    return new URL(url).hostname || "Unknown API"
+  } catch {
+    return "Unknown API"
+  }
+}
 
 function stageStateFor(stage: ChainStage | null, status: string, key: string): StageState {
   if (status === "error") {
@@ -41,7 +51,7 @@ function stageStateFor(stage: ChainStage | null, status: string, key: string): S
 
 function StageIcon({ state }: { state: StageState }) {
   if (state === "done")    return <span style={{ color: "var(--accent-green)" }}>✓</span>
-  if (state === "running") return <span className="spin" style={{ color: "var(--accent-orange)" }}>⟳</span>
+  if (state === "running") return <span className="spin" style={{ color: "#d97706" }}>⟳</span>
   if (state === "error")   return <span style={{ color: "var(--accent-red)" }}>✗</span>
   return <span style={{ color: "var(--text-muted)" }}>○</span>
 }
@@ -62,7 +72,7 @@ function StageLabel({ state, label }: { state: StageState; label: string }) {
 function StateTag({ state }: { state: StageState }) {
   const map = {
     done:    { label: "done",    color: "var(--accent-green)"  },
-    running: { label: "running", color: "var(--accent-orange)" },
+    running: { label: "running", color: "#d97706" },
     error:   { label: "error",   color: "var(--accent-red)"    },
     pending: { label: "pending", color: "var(--text-muted)"    },
   }
@@ -94,6 +104,14 @@ export default function PipelineProgress({ jobId }: Props) {
         setJobState(data)
         if (data.status === "complete") {
           es.close()
+          saveConversation({
+            jobId,
+            label: extractLabel(data.spec_summary?.base_url),
+            source: jobId.slice(0, 8),
+            timestamp: Date.now(),
+            endpointCount: data.spec_summary?.endpoints?.length ?? 0,
+            authType: data.spec_summary?.auth_type ?? "none",
+          })
           setTimeout(() => router.push(`/results?job=${jobId}`), 600)
         }
         if (data.status === "error") {

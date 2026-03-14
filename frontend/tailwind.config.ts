@@ -23,8 +23,8 @@ const config: Config = {
         "text-code":     "#7c3aed",
       },
       fontFamily: {
-        sans: ["var(--font-ibm-plex-sans)", "system-ui", "sans-serif"],
-        mono: ["var(--font-jetbrains-mono)", "monospace"],
+        sans: ["var(--font-inter)", "Inter", "system-ui", "sans-serif"],
+        mono: ["var(--font-inter)", "Inter", "system-ui", "sans-serif"],
       },
       animation: {
         spin: "spin 1s linear infinite",

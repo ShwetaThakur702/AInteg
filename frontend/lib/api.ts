@@ -36,3 +36,15 @@ export async function checkHealth(): Promise<{ status: string; mock_mode: boolea
   const res = await fetch(`${API_BASE}/api/health`)
   return res.json()
 }
+
+export async function sendChatMessage(
+  jobId: string,
+  message: string,
+  history: Array<{ role: string; content: string }>
+): Promise<Response> {
+  return fetch(`${API_BASE}/api/chat`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ job_id: jobId, message, history }),
+  })
+}

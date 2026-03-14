@@ -41,3 +41,9 @@ dist/
 # Temporary files
 *.tmp
 *.temp
+
+# Generated pipeline output
+output/
+
+# pytest cache
+.pytest_cache/

@@ -27,6 +27,7 @@ html, body {
   overflow-x: hidden;
   background-color: var(--bg-base);
   color: var(--text-primary);
+  font-family: var(--font-inter), Inter, system-ui, sans-serif;
 }
 
 /* Scrollbar */
